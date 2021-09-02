@@ -15,3 +15,25 @@ variable "policy_arns" {
     type = list(string)
     default = []
 }
+
+variable "node_groups" {
+    description = "Node groups"
+    default = []
+}
+
+variable "managed_node_groups" {
+    description = "Managed Node groups"
+    default = []
+}
+
+variable "subnets" {
+    description = "List of subnets IDs"
+    type = list(string)
+    default = null
+}
+
+variable "kubernetes_version" {
+    description = "Version of kubernetes"
+    type = string
+    default = "1.19"
+}
