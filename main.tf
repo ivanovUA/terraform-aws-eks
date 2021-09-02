@@ -109,7 +109,7 @@ resource "aws_autoscaling_group" "node_group" {
               version = aws_launch_template.node_group[each.key].latest_version
           }
           dynamic "override" {
-              for_eachfor_each = lookup(each.value, "instances_override", [])
+              for_each = lookup(each.value, "instances_override", [])
               content {
                   instance_type = lookup(override.value, "instance_type", null)
                   weighted_capacity = lookup(override.value, "weighted_capacity", null)
@@ -129,7 +129,7 @@ resource "aws_autoscaling_group" "node_group" {
           }
       }
     }
-    dynamic "tags" {
+    dynamic "tag" {
         for_each = merge(
             local.eks-tag,
             {
