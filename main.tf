@@ -134,6 +134,9 @@ resource "aws_autoscaling_group" "node_group" {
             local.eks-tag,
             {
                 "eks:nodegroup-name" = join("-", [aws_eks_cluster.control_plane.name, each.key])
+            },
+            {
+                "Name" = join("-", [aws_eks_cluster.control_plane.name, each.key])
             }
         )
         content {
