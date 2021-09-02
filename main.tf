@@ -81,3 +81,78 @@ resource "aws_launch_template" "node_group" {
         ignore_changes = [name]
     }
 }
+
+resource "aws_autoscaling_group" "node_group" {
+    for_each = { for ng in var.node_groups : ng.name => ng }
+    name = format("eks-%s", uuid())
+    vpc_zone_identifier = local.subnet_ids
+    max_size = lookup(each.value, "max_size", 3)
+    min_size = lookup(each.value, "min_size", 1)
+    desired_capacity = lookup(each.value, "desired_size", 1)
+    force_delete = true
+    protect_from_scale_in = false
+    termination_policies = ["Default"]
+    enabled_metrics = [
+        "GroupMinSize",
+        "GroupMaxSize",
+        "GroupDesiredCapacity",
+        "GroupInServiceInstances",
+        "GroupPendingInstances",
+        "GroupStandbyInstances",
+        "GroupTerminatingInstances",
+        "GroupTotalInstances",
+    ]
+    mixed_instances_policy {
+      launch_template {
+          launch_template_specification {
+              launch_template_id = aws_launch_template.node_group[each.key].id
+              version = aws_launch_template.node_group[each.key].latest_version
+          }
+          dynamic "override" {
+              for_eachfor_each = lookup(each.value, "instances_override", [])
+              content {
+                  instance_type = lookup(override.value, "instance_type", null)
+                  weighted_capacity = lookup(override.value, "weighted_capacity", null)
+              }
+          }
+      }
+
+      dynamic "instances_distribution" {
+          for_each = { for key, val in each.value : key => val if key == "instances_distribution" }
+          content {
+              on_demand_allocation_strategy = lookup(instances_distribution.value, "on_demand_allocation_strategy", null)
+              on_demand_base_capacity = lookup(instances_distribution.value, "on_demand_base_capacity", null)
+              on_demand_percentage_above_base_capacity = lookup(instances_distribution.value, "on_demand_percentage_above_base_capacity", null)
+              spot_allocation_strategy = lookup(instances_distribution.value, "spot_allocation_strategy", null)
+              spot_instance_pools = lookup(instances_distribution.value, "spot_instance_pools", null)
+              spot_max_price = lookup(instances_distribution.value, "spot_max_price", null)
+          }
+      }
+    }
+    dynamic "tags" {
+        for_each = merge(
+            local.eks-tag,
+            {
+                "eks:nodegroup-name" = join("-", [aws_eks_cluster.control_plane.name, each.key])
+            }
+        )
+        content {
+            key = tag.key
+            value = tag.value
+            propagate_at_launch = true
+        }
+    }
+    lifecycle {
+      create_before_destroy = true
+      ignore_changes = [desired_capacity, name]
+    }
+
+    depends_on = [
+      aws_iam_role.node_group,
+      aws_iam_role_policy_attachment.AmazonEKSWorkerNodePolicy,
+      aws_iam_role_policy_attachment.AmazonEKS_CNI_Policy,
+      aws_iam_role_policy_attachment.AmazonEC2ContainerRegistryReadOnly,
+      aws_iam_role_policy_attachment.CloudWatchAgentServerPolicy,
+      aws_launch_template.node_group,
+    ]
+}
