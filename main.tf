@@ -159,3 +159,9 @@ resource "aws_autoscaling_group" "node_group" {
       aws_launch_template.node_group,
     ]
 }
+
+provider "kubernetes" {
+    host = aws_eks_cluster.control_plane.endpoint
+    token = data.aws_eks_cluster_auth.control_plane.token
+    cluster_ca_certificate = base64decode(aws_eks_cluster.control_plane.certificate_authority.0.data)
+}
