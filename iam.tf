@@ -71,3 +71,8 @@ resource "aws_iam_role_policy_attachment" "CloudWatchAgentServerPolicy" {
     role = aws_iam_role.node_group.0.name
 }
 
+resource "aws_iam_role_policy_attachment" "extra" {
+    for_each = { for key, val in var.policy_arns : key => val }
+    policy_arn = each.value
+    role = aws_iam_role.node_group[0].name
+}

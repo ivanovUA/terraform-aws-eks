@@ -9,3 +9,9 @@ variable "tags" {
     type = map(string)
     default = {}
 }
+
+variable "policy_arns" {
+    description = "List of policy ARNs for node group role"
+    type = list(string)
+    default = []
+}
