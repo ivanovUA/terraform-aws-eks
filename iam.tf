@@ -65,3 +65,9 @@ resource "aws_iam_role_policy_attachment" "AmazonEC2ContainerRegistryReadOnly" {
     role = aws_iam_role.node_group.0.name
 }
 
+resource "aws_iam_role_policy_attachment" "CloudWatchAgentServerPolicy" {
+    count = local.node_groups_enabled || local.managed_node_groups_enabled ? 1 : 0
+    policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+    role = aws_iam_role.node_group.0.name
+}
+
