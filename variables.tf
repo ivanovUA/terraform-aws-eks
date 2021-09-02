@@ -3,3 +3,9 @@ variable "name" {
     type = string
     default = null
 }
+
+variable "tags" {
+    description = "Tags. Use key:value"
+    type = map(string)
+    default = {}
+}
