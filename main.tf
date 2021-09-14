@@ -35,27 +35,39 @@ data "aws_ami" "eks" {
     }
 }
 
-data "template_cloudinit_config" "node_group" {
-    for_each = { for ng in var.node_groups : ng.name => ng }
-    base64_encode = true
-    gzip = false
-
-    part {
-      content_type = "text/x-shellscript"
-      content = <<-EOT
-        #!/bin/bash
-        set -ex
-        /etc/eks/bootstrap.sh ${aws_eks_cluster.control_plane.name} --kubelet-extra-args 'eks.amazonaws.com/nodegroup=${join("-", [aws_eks_cluster.control_plane.name, each.key])}' --b64-cluster-ca ${aws_eks_cluster.control_plane.certificate_authority.0.data} --apiserver-endpoint ${aws_eks_cluster.control_plane.endpoint}
-      EOT
-    }
-}
 
 resource "aws_launch_template" "node_group" {
     for_each = { for ng in var.node_groups : ng.name => ng }
     name = format("eks-%s", uuid())
     tags = merge(local.default-tags, local.eks-tag, var.tags)
     image_id = data.aws_ami.eks[each.key].id
-    user_data = base64encode(data.template_cloudinit_config.node_group[each.key].rendered)
+    user_data = base64encode(
+        templatefile(
+            "${path.module}/templates/userdata.sh.tpl",
+            {
+                cluster_name = aws_eks_cluster.control_plane.name
+                base64_cluster_ca = aws_eks_cluster.control_plane.certificate_authority[0].data
+                api_server_url = aws_eks_cluster.control_plane.endpoint
+                kubelet_more_extra_args = ""
+                node_taints = length(each.value.taints) == 0 ? "" : join(",", [for k, v in lookup(each.value, "taints", {}) : "${k}=${v}"])
+                node_labels = length(each.value.labels) == 0 ? "" : join(",", [for k, v in lookup(each.value, "labels", {}) : "${k}=${v}"])
+                # node_labels = join(
+                #     ",",
+                #     [
+                #         for k, v in
+                #         merge(
+                #             map(
+                #                 "eks.amazonaws.com/nodegroup-image", data.aws_ami.eks[each.key].id,
+                #                 "eks.amazonaws.com/nodegroup", each.key,
+
+                #             ),
+                #         )
+                #     : "${k}=${v}"]
+                # )
+                use_max_pods = var.node_use_max_pods
+            }
+        )
+    )
     instance_type = lookup(each.value, "instance_type", "t3.medium")
     iam_instance_profile {
         arn = aws_iam_instance_profile.node_group.0.arn
@@ -164,4 +176,18 @@ provider "kubernetes" {
     host = aws_eks_cluster.control_plane.endpoint
     token = data.aws_eks_cluster_auth.control_plane.token
     cluster_ca_certificate = base64decode(aws_eks_cluster.control_plane.certificate_authority.0.data)
+}
+
+resource "null_resource" "check_aws_credentials_are_available" {
+    provisioner "local-exec" {
+        command = <<-EOT
+            sh -c '
+                aws sts get-caller-identity
+                if [ $? -ne 0 ]; then
+                    echo "There was some issue trying to execute the AWS CLI."
+                    echo "This might mean no valid credentials are configured."
+                    exit 1
+                fi'
+        EOT
+    }
 }
