@@ -204,3 +204,18 @@ resource "null_resource" "update_kubeconfig_with_cluster_info" {
       aws_eks_cluster.control_plane
     ]
 }
+
+resource "null_resource" "remove_aws_vpc_cni" {
+    count = var.use_calico_cni ? 1 : 0
+    provisioner "local-exec" {
+        command = <<-EOT
+            kubectl --context='${aws_eks_cluster.control_plan.arn}' delete daemonset -n kube-system aws-node
+        EOT
+        interpreter = ["bash", "-c"]
+    }
+    depends_on = [
+      null_resource.check_aws_credentials_are_available,
+      null_resource.update_kubeconfig_with_cluster_info
+    ]
+}
+
