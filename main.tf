@@ -169,6 +169,7 @@ resource "aws_autoscaling_group" "node_group" {
       aws_iam_role_policy_attachment.AmazonEC2ContainerRegistryReadOnly,
       aws_iam_role_policy_attachment.CloudWatchAgentServerPolicy,
       aws_launch_template.node_group,
+      null_resource.remove_aws_vpc_cni,
     ]
 }
 
@@ -209,7 +210,7 @@ resource "null_resource" "remove_aws_vpc_cni" {
     count = var.use_calico_cni ? 1 : 0
     provisioner "local-exec" {
         command = <<-EOT
-            kubectl --context='${aws_eks_cluster.control_plan.arn}' delete daemonset -n kube-system aws-node
+            kubectl --context='${aws_eks_cluster.control_plane.arn}' delete daemonset -n kube-system aws-node
         EOT
         interpreter = ["bash", "-c"]
     }
@@ -223,7 +224,7 @@ resource "null_resource" "install_calico_cni" {
     count = var.use_calico_cni ? 1 : 0
     provisioner "local-exec" {
         command = <<-EOT
-            kubectl --context='${aws_eks_cluster.control_plan.arn}' \
+            kubectl --context='${aws_eks_cluster.control_plane.arn}' \
                 apply -f https://docs.projectcalico.org/manifests/calico-vxlan.yaml
         EOT
         interpreter = ["bash", "-c"]
