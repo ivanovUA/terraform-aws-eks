@@ -6,6 +6,8 @@ tags = {
 }
 kubernetes_version = "1.19"
 
+use_calico_cni = true
+
 node_groups = [
   {
     name          = "spot"
