@@ -191,3 +191,16 @@ resource "null_resource" "check_aws_credentials_are_available" {
         EOT
     }
 }
+
+resource "null_resource" "update_kubeconfig_with_cluster_info" {
+    provisioner "local-exec" {
+        command = <<-EOT
+            aws eks update-kubeconfig --name ${aws_eks_cluster.control_plane.name}
+        EOT
+    }
+
+    depends_on = [
+      null_resource.check_aws_credentials_are_available,
+      aws_eks_cluster.control_plane
+    ]
+}
