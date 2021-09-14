@@ -219,3 +219,18 @@ resource "null_resource" "remove_aws_vpc_cni" {
     ]
 }
 
+resource "null_resource" "install_calico_cni" {
+    count = var.use_calico_cni ? 1 : 0
+    provisioner "local-exec" {
+        command = <<-EOT
+            kubectl --context='${aws_eks_cluster.control_plan.arn}' \
+                apply -f https://docs.projectcalico.org/manifests/calico-vxlan.yaml
+        EOT
+        interpreter = ["bash", "-c"]
+    }
+    depends_on = [
+      null_resource.remove_aws_vpc_cni,
+      null_resource.check_aws_credentials_are_available,
+      null_resource.update_kubeconfig_with_cluster_info
+    ]
+}
