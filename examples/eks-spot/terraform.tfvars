@@ -6,6 +6,8 @@ tags = {
 }
 kubernetes_version = "1.19"
 
+use_calico_cni = true
+
 node_groups = [
   {
     name          = "spot"
@@ -17,6 +19,8 @@ node_groups = [
       spot_allocation_strategy = "lowest-price"
       spot_max_price           = "0.036"
     }
+    taints = {"spotinstance":"true:PreferNoSchedule"}
+    labels = {}
     instances_override = [
       {
         instance_type = "t3.small"
