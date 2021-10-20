@@ -30,8 +30,3 @@ variable "node_groups" {
   description = "Node groups definition"
   default     = []
 }
-
-variable "use_calico_cni" {
-    type = bool
-    default = false
-}
