@@ -3,10 +3,9 @@ provider "aws" {
 }
 
 module "eks" {
-    source = "../../"
+    source = "github.com/ivanovUA/terraform-aws-eks"
     name = var.name
     tags = var.tags
     kubernetes_version = var.kubernetes_version
     node_groups = var.node_groups
-    use_calico_cni = var.use_calico_cni
 }
