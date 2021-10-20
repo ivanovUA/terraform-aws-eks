@@ -1,3 +1,7 @@
+data "aws_eks_cluster_auth" "control_plane" {
+  name = format("%s", local.name)
+}
+
 locals {
     node_groups_enabled = (var.node_groups != null ? ((length(var.node_groups) > 0) ? true : false) : false)
     managed_node_groups_enabled = (var.managed_node_groups != null ? ((length(var.managed_node_groups) > 0) ? true : false) : false)   
@@ -45,7 +49,7 @@ data "template_cloudinit_config" "node_group" {
       content = <<-EOT
         #!/bin/bash
         set -ex
-        /etc/eks/bootstrap.sh ${aws_eks_cluster.control_plane.name} --kubelet-extra-args 'eks.amazonaws.com/nodegroup=${join("-", [aws_eks_cluster.control_plane.name, each.key])}' --b64-cluster-ca ${aws_eks_cluster.control_plane.certificate_authority.0.data} --apiserver-endpoint ${aws_eks_cluster.control_plane.endpoint}
+        /etc/eks/bootstrap.sh ${aws_eks_cluster.control_plane.name} --b64-cluster-ca ${aws_eks_cluster.control_plane.certificate_authority.0.data} --apiserver-endpoint ${aws_eks_cluster.control_plane.endpoint}
       EOT
     }
 }
@@ -157,6 +161,7 @@ resource "aws_autoscaling_group" "node_group" {
       aws_iam_role_policy_attachment.AmazonEC2ContainerRegistryReadOnly,
       aws_iam_role_policy_attachment.CloudWatchAgentServerPolicy,
       aws_launch_template.node_group,
+      kubernetes_config_map.aws-auth
     ]
 }
 
@@ -164,4 +169,25 @@ provider "kubernetes" {
     host = aws_eks_cluster.control_plane.endpoint
     token = data.aws_eks_cluster_auth.control_plane.token
     cluster_ca_certificate = base64decode(aws_eks_cluster.control_plane.certificate_authority.0.data)
+}
+
+
+resource "kubernetes_config_map" "aws-auth" {
+    metadata {
+        name = "aws-auth"
+        namespace = "kube-system"
+    }
+
+    data = {
+        mapRoles = yamlencode(
+            [{
+                rolearn  = element(compact(aws_iam_role.node_group.*.arn), 0)
+                username = "system:node:{{EC2PrivateDNSName}}"
+                groups = ["system:bootstrappers", "system:nodes"]
+            }]
+        )
+    }
+    depends_on = [
+        aws_eks_cluster.control_plane
+    ]
 }
