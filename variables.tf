@@ -37,3 +37,8 @@ variable "kubernetes_version" {
     type = string
     default = "1.19"
 }
+
+variable "node_use_max_pods" {
+    description = "Max pods inside one node"
+    default = 110
+}
