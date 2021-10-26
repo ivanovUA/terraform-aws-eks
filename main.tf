@@ -160,7 +160,9 @@ resource "aws_autoscaling_group" "node_group" {
       aws_iam_role_policy_attachment.AmazonEC2ContainerRegistryReadOnly,
       aws_iam_role_policy_attachment.CloudWatchAgentServerPolicy,
       aws_launch_template.node_group,
-      kubernetes_config_map.aws-auth
+      kubernetes_config_map.aws-auth,
+      kubernetes_config_map.aws-auth,
+      null_resource.remove_aws_vpc_cni
     ]
 }
 
@@ -188,5 +190,62 @@ resource "kubernetes_config_map" "aws-auth" {
     }
     depends_on = [
         aws_eks_cluster.control_plane
+    ]
+}
+
+resource "null_resource" "check_aws_credentials_are_available" {
+    provisioner "local-exec" {
+        command = <<-EOT
+            sh -c '
+                aws sts get-caller-identity
+                if [ $? -ne 0 ]; then
+                    echo "There was some issue trying to execute the AWS CLI."
+                    echo "This might mean no valid credentials are configured."
+                    exit 1
+                fi'
+        EOT
+    }
+}
+
+resource "null_resource" "update_kubeconfig_with_cluster_info" {
+    provisioner "local-exec" {
+        command = <<-EOT
+            aws eks update-kubeconfig --name ${aws_eks_cluster.control_plane.name} --region ${var.aws_region}
+        EOT
+    }
+
+    depends_on = [
+      null_resource.check_aws_credentials_are_available,
+      aws_eks_cluster.control_plane
+    ]
+}
+
+resource "null_resource" "remove_aws_vpc_cni" {
+    count = var.use_calico_cni ? 1 : 0
+    provisioner "local-exec" {
+        command = <<-EOT
+            kubectl --context='${aws_eks_cluster.control_plane.arn}' delete daemonset -n kube-system aws-node
+        EOT
+        interpreter = ["bash", "-c"]
+    }
+    depends_on = [
+      null_resource.check_aws_credentials_are_available,
+      null_resource.update_kubeconfig_with_cluster_info
+    ]
+}
+
+resource "null_resource" "install_calico_cni" {
+    count = var.use_calico_cni ? 1 : 0
+    provisioner "local-exec" {
+        command = <<-EOT
+            kubectl --context='${aws_eks_cluster.control_plane.arn}' \
+                apply -f https://docs.projectcalico.org/manifests/calico-vxlan.yaml
+        EOT
+        interpreter = ["bash", "-c"]
+    }
+    depends_on = [
+      null_resource.remove_aws_vpc_cni,
+      null_resource.check_aws_credentials_are_available,
+      null_resource.update_kubeconfig_with_cluster_info
     ]
 }
